@@ -607,7 +607,7 @@ class Database:
         cursor = self.connection.cursor()
         placeholder = self._placeholder()
         
-        # Build query based on gender filter
+        # Build query based on gender filter - only match users actively looking for chat
         if gender_filter:
             if self.is_sqlite:
                 query = f'''
@@ -668,8 +668,50 @@ class Database:
         return result[0] if result else None
 
     def find_chat_partner(self, user_id, gender_filter=None):
-        # Legacy method - redirect to new method
-        return self.find_chat_partner_by_gender(user_id, gender_filter)
+        if not self._ensure_connection():
+            return None
+        cursor = self.connection.cursor()
+        placeholder = self._placeholder()
+        
+        if self.is_sqlite:
+            query = f'''
+                SELECT user_id FROM users 
+                WHERE user_id != {placeholder} 
+                AND profile_completed = 1 
+                AND agreed_terms = 1 
+                AND is_blocked = 0 
+                AND chat_partner IS NULL
+                AND looking_for_chat = 1
+            '''
+            params = [user_id]
+            
+            if gender_filter:
+                query += f' AND gender = {placeholder}'
+                params.append(gender_filter)
+                
+            query += ' ORDER BY RANDOM() LIMIT 1'
+        else:
+            query = f'''
+                SELECT user_id FROM users 
+                WHERE user_id != {placeholder} 
+                AND profile_completed = TRUE 
+                AND agreed_terms = TRUE 
+                AND is_blocked = FALSE 
+                AND chat_partner IS NULL
+                AND looking_for_chat = TRUE
+            '''
+            params = [user_id]
+            
+            if gender_filter:
+                query += f' AND gender = {placeholder}'
+                params.append(gender_filter)
+                
+            query += ' ORDER BY RANDOM() LIMIT 1'
+        
+        cursor.execute(query, params)
+        partner = cursor.fetchone()
+        cursor.close()
+        return partner[0] if partner else None
 
     def start_chat_session(self, user1_id, user2_id):
         if not self._ensure_connection():
@@ -767,48 +809,56 @@ class Database:
         ''', (sender_id, receiver_id, message_type, content))
         cursor.close()
 
-    def get_bot_stats(self):
+    def get_stats(self):
         if not self._ensure_connection():
-            return {
-                'total_users': 0,
-                'active_chats': 0,
-                'total_messages': 0,
-                'vip_users': 0,
-                'updated_at': 'N/A'
-            }
+            return {'total_users': 0, 'active_chats': 0, 'total_messages': 0, 'vip_users': 0}
         
-        cursor = self.connection.cursor()
-        
-        # Get total users
-        cursor.execute('SELECT COUNT(*) FROM users')
-        total_users = cursor.fetchone()[0]
-        
-        # Get active chats
         if self.is_sqlite:
-            cursor.execute('SELECT COUNT(*) FROM users WHERE chat_partner IS NOT NULL')
+            cursor = self.connection.cursor()
+            # Get user counts with SQLite syntax
+            cursor.execute('SELECT COUNT(*) as total_users FROM users WHERE agreed_terms = 1')
+            result = cursor.fetchone()
+            total_users = result[0] if result else 0
+            
+            cursor.execute('SELECT COUNT(*) as active_chats FROM users WHERE chat_partner IS NOT NULL')
+            result = cursor.fetchone()
+            active_chats = result[0] if result else 0
+            
+            cursor.execute('SELECT COUNT(*) as total_messages FROM message_logs')
+            result = cursor.fetchone()
+            total_messages = result[0] if result else 0
+            
+            cursor.execute("SELECT COUNT(*) as vip_users FROM users WHERE is_vip = 1 AND datetime(vip_until) > datetime('now')")
+            result = cursor.fetchone()
+            vip_users = result[0] if result else 0
+            
+            cursor.close()
         else:
-            cursor.execute('SELECT COUNT(*) FROM users WHERE chat_partner IS NOT NULL')
-        active_chats = cursor.fetchone()[0] // 2  # Divide by 2 since each chat involves 2 users
-        
-        # Get total messages
-        cursor.execute('SELECT COUNT(*) FROM message_logs')
-        total_messages = cursor.fetchone()[0]
-        
-        # Get VIP users
-        if self.is_sqlite:
-            cursor.execute('SELECT COUNT(*) FROM users WHERE is_vip = 1 AND datetime(vip_until) > datetime("now")')
-        else:
-            cursor.execute('SELECT COUNT(*) FROM users WHERE is_vip = TRUE AND vip_until > CURRENT_TIMESTAMP')
-        vip_users = cursor.fetchone()[0]
-        
-        cursor.close()
+            cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            # Get user counts with PostgreSQL syntax
+            cursor.execute('SELECT COUNT(*) as total_users FROM users WHERE agreed_terms = TRUE')
+            result = cursor.fetchone()
+            total_users = result['total_users'] if result else 0
+            
+            cursor.execute('SELECT COUNT(*) as active_chats FROM users WHERE chat_partner IS NOT NULL')
+            result = cursor.fetchone()
+            active_chats = result['active_chats'] if result else 0
+            
+            cursor.execute('SELECT COUNT(*) as total_messages FROM message_logs')
+            result = cursor.fetchone()
+            total_messages = result['total_messages'] if result else 0
+            
+            cursor.execute('SELECT COUNT(*) as vip_users FROM users WHERE is_vip = TRUE AND vip_until > CURRENT_TIMESTAMP')
+            result = cursor.fetchone()
+            vip_users = result['vip_users'] if result else 0
+            
+            cursor.close()
         
         return {
             'total_users': total_users,
-            'active_chats': active_chats,
+            'active_chats': active_chats // 2,  # Divide by 2 since each chat involves 2 users
             'total_messages': total_messages,
-            'vip_users': vip_users,
-            'updated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'vip_users': vip_users
         }
 
     def get_all_users(self):

@@ -16,9 +16,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Suppress httpx request logging to prevent token exposure
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 # Bot configuration
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-LOG_GROUP_ID = -1002966299699
+LOG_GROUP_ID = -1002911871934
 INITIAL_ADMIN_ID = 8147394357
 
 # Initialize database
@@ -563,31 +566,182 @@ Enjoy chatting anonymously!
 
     async def update_profile_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
-            [InlineKeyboardButton("👤 Edit Gender", callback_data="edit_gender")],
-            [InlineKeyboardButton("🌍 Edit Country", callback_data="edit_country")],
-            [InlineKeyboardButton("🎂 Edit Age", callback_data="edit_age")],
+            [InlineKeyboardButton("🚹 Change Gender", callback_data="edit_gender")],
+            [InlineKeyboardButton("🌍 Change Country", callback_data="edit_country")],
+            [InlineKeyboardButton("🎂 Change Age", callback_data="edit_age")],
             [InlineKeyboardButton("🔙 Back to Profile", callback_data="back_to_profile")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.callback_query:
-            await update.callback_query.edit_message_text("✏️ **Update Profile:**", reply_markup=reply_markup, parse_mode='Markdown')
+            await update.callback_query.edit_message_text("✏️ **Choose what to update:**", reply_markup=reply_markup, parse_mode='Markdown')
         elif update.message:
-            await update.message.reply_text("✏️ **Update Profile:**", reply_markup=reply_markup, parse_mode='Markdown')
+            await update.message.reply_text("✏️ **Choose what to update:**", reply_markup=reply_markup, parse_mode='Markdown')
 
     async def partner_filter_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
-            [InlineKeyboardButton("👨 Male Only", callback_data="filter_Male")],
-            [InlineKeyboardButton("👩 Female Only", callback_data="filter_Female")],
-            [InlineKeyboardButton("🎲 Any Gender", callback_data="filter_any")],
-            [InlineKeyboardButton("🔙 Back to Profile", callback_data="back_to_profile")]
+            [InlineKeyboardButton("🧑🏻‍🦰 Male Only", callback_data="filter_Male")],
+            [InlineKeyboardButton("👱🏻‍♀ Female Only", callback_data="filter_Female")],
+            [InlineKeyboardButton("🔄 Any Gender", callback_data="filter_any")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.callback_query:
-            await update.callback_query.edit_message_text("🔍 **Partner Filter (VIP):**", reply_markup=reply_markup, parse_mode='Markdown')
+            await update.callback_query.edit_message_text("🔍 **Select Partner Filter:**", reply_markup=reply_markup, parse_mode='Markdown')
         elif update.message:
-            await update.message.reply_text("🔍 **Partner Filter (VIP):**", reply_markup=reply_markup, parse_mode='Markdown')
+            await update.message.reply_text("🔍 **Select Partner Filter:**", reply_markup=reply_markup, parse_mode='Markdown')
+
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        
+        if not await self.check_user_eligibility(update, context):
+            return
+        
+        user_data = db.get_user(user_id)
+        
+        if not user_data['chat_partner']:
+            await update.message.reply_text("❌ You are not in a chat session. Use /chat to find a partner.")
+            return
+        
+        partner_id = user_data['chat_partner']
+        
+        # Check for links
+        if update.message.text and any(url in update.message.text.lower() for url in ['http', 'www.', '.com', '.org', '.net']):
+            await update.message.reply_text("❌ Links are not allowed in chats.")
+            return
+        
+        # Forward message to partner
+        try:
+            if update.message.text:
+                await context.bot.send_message(chat_id=partner_id, text=update.message.text)
+                db.log_message(user_id, partner_id, "text", update.message.text)
+                await self.log_to_group(context, user_id, partner_id, "text", update.message.text)
+                
+            elif update.message.photo:
+                photo_file_id = update.message.photo[-1].file_id
+                await context.bot.send_photo(chat_id=partner_id, photo=photo_file_id, caption=update.message.caption)
+                db.log_message(user_id, partner_id, "photo", update.message.caption or "Photo")
+                await self.log_to_group(context, user_id, partner_id, "photo", "Photo", file_id=photo_file_id, caption=update.message.caption)
+                
+            elif update.message.video:
+                video_file_id = update.message.video.file_id
+                await context.bot.send_video(chat_id=partner_id, video=video_file_id, caption=update.message.caption)
+                db.log_message(user_id, partner_id, "video", update.message.caption or "Video")
+                await self.log_to_group(context, user_id, partner_id, "video", "Video", file_id=video_file_id, caption=update.message.caption)
+                
+            elif update.message.sticker:
+                sticker_file_id = update.message.sticker.file_id
+                await context.bot.send_sticker(chat_id=partner_id, sticker=sticker_file_id)
+                db.log_message(user_id, partner_id, "sticker", "Sticker")
+                await self.log_to_group(context, user_id, partner_id, "sticker", "Sticker", file_id=sticker_file_id)
+                
+            elif update.message.voice:
+                voice_file_id = update.message.voice.file_id
+                await context.bot.send_voice(chat_id=partner_id, voice=voice_file_id)
+                db.log_message(user_id, partner_id, "voice", "Voice message")
+                await self.log_to_group(context, user_id, partner_id, "voice", "Voice message", file_id=voice_file_id)
+                
+        except Exception as e:
+            logger.error(f"Error forwarding message: {e}")
+            await update.message.reply_text("❌ Failed to send message. Your partner may have left the chat.")
+
+    async def log_to_group(self, context: ContextTypes.DEFAULT_TYPE, sender_id: int, receiver_id: int, message_type: str, content: str, file_id=None, caption=None):
+        try:
+            sender_data = db.get_user(sender_id)
+            receiver_data = db.get_user(receiver_id)
+            
+            log_header = f"""📝 Message Log
+👤 Sender: {sender_id} (@{sender_data['username'] or 'N/A'}) - {sender_data['gender']}
+👤 Receiver: {receiver_id} (@{receiver_data['username'] or 'N/A'}) - {receiver_data['gender']}
+⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+            
+            # Send actual content based on message type
+            if message_type == "text":
+                full_message = f"""{log_header}
+📱 Type: Text Message
+💬 Content: {content}"""
+                await context.bot.send_message(chat_id=LOG_GROUP_ID, text=full_message)
+                
+            elif message_type == "photo" and file_id:
+                await context.bot.send_photo(
+                    chat_id=LOG_GROUP_ID, 
+                    photo=file_id, 
+                    caption=f"""{log_header}
+📱 Type: Photo
+💬 Caption: {caption or 'No caption'}"""
+                )
+                
+            elif message_type == "video" and file_id:
+                await context.bot.send_video(
+                    chat_id=LOG_GROUP_ID, 
+                    video=file_id, 
+                    caption=f"""{log_header}
+📱 Type: Video
+💬 Caption: {caption or 'No caption'}"""
+                )
+                
+            elif message_type == "sticker" and file_id:
+                await context.bot.send_sticker(chat_id=LOG_GROUP_ID, sticker=file_id)
+                await context.bot.send_message(
+                    chat_id=LOG_GROUP_ID, 
+                    text=f"""{log_header}
+📱 Type: Sticker"""
+                )
+                
+            elif message_type == "voice" and file_id:
+                await context.bot.send_voice(chat_id=LOG_GROUP_ID, voice=file_id)
+                await context.bot.send_message(
+                    chat_id=LOG_GROUP_ID, 
+                    text=f"""{log_header}
+📱 Type: Voice Message"""
+                )
+                
+            else:
+                # Fallback for other types
+                full_message = f"""{log_header}
+📱 Type: {message_type}
+💬 Content: {content}"""
+                await context.bot.send_message(chat_id=LOG_GROUP_ID, text=full_message)
+                
+        except Exception as e:
+            logger.error(f"Error logging to group: {e}")
+
+    async def check_user_eligibility(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        user_data = db.get_user(user_id)
+        
+        if not user_data:
+            await update.message.reply_text("❌ Please start the bot first with /start")
+            return False
+        
+        if user_data['is_blocked']:
+            await update.message.reply_text("❌ You are blocked from using this bot.")
+            return False
+        
+        if not user_data['agreed_terms']:
+            await update.message.reply_text("❌ Please agree to terms first with /start")
+            return False
+        
+        if not user_data['profile_completed']:
+            await update.message.reply_text("❌ Please complete your profile first.")
+            return False
+        
+        # Check VIP expiry
+        db.check_vip_expired(user_id)
+        
+        # Check force join compliance
+        force_join_groups = db.get_force_join_groups()
+        for group in force_join_groups:
+            try:
+                member = await context.bot.get_chat_member(group['group_id'], user_id)
+                if member.status in ['left', 'kicked']:
+                    await self.check_force_join_compliance(update, context)
+                    return False
+            except:
+                await self.check_force_join_compliance(update, context)
+                return False
+        
+        return True
 
     # Admin commands
     async def admin_promote_vip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -634,272 +788,208 @@ Enjoy chatting anonymously!
             await update.message.reply_text("❌ Invalid user ID or duration. Both must be numbers.")
 
     async def admin_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
-        stats = db.get_bot_stats()
-        message_text = f"""
-📊 **Bot Statistics:**
+        stats = db.get_stats()
+        force_join_groups = db.get_force_join_groups()
+        
+        stats_message = f"""
+📊 **Bot Statistics**
 
-👥 Total Users: {stats['total_users']}
-💬 Active Chats: {stats['active_chats']}
-📨 Total Messages: {stats['total_messages']}
-👑 VIP Users: {stats['vip_users']}
+👥 **Total Users:** {stats['total_users']}
+💬 **Active Chats:** {stats['active_chats']}
+📝 **Total Messages:** {stats['total_messages']}
+👑 **VIP Users:** {stats['vip_users']}
+🔒 **Force Join Groups:** {len(force_join_groups)}
 
-Updated: {stats['updated_at']}
+⏰ **Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         """
         
-        await update.message.reply_text(message_text, parse_mode='Markdown')
+        await update.message.reply_text(stats_message, parse_mode='Markdown')
 
     async def admin_broadcast(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
-        if not context.args:
-            await update.message.reply_text("❌ Usage: /broadcast <message>")
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ Please reply to a message to broadcast it.")
             return
         
-        message = " ".join(context.args)
         users = db.get_all_users()
-        
         sent_count = 0
-        failed_count = 0
         
-        await update.message.reply_text("📡 Starting broadcast...")
+        await update.message.reply_text(f"📢 Starting broadcast to {len(users)} users...")
         
-        for user in users:
+        for user_id in users:
             try:
-                await context.bot.send_message(chat_id=user['user_id'], text=message)
+                await context.bot.copy_message(
+                    chat_id=user_id,
+                    from_chat_id=update.message.chat_id,
+                    message_id=update.message.reply_to_message.message_id
+                )
                 sent_count += 1
             except:
-                failed_count += 1
+                continue
         
-        await update.message.reply_text(f"✅ Broadcast completed!\n📤 Sent: {sent_count}\n❌ Failed: {failed_count}")
+        await update.message.reply_text(f"✅ Broadcast completed! Sent to {sent_count}/{len(users)} users.")
 
     async def admin_block(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
         if not context.args:
-            await update.message.reply_text("❌ Usage: /block <user_id>")
+            await update.message.reply_text("❌ Please provide user ID. Usage: /block <user_id>")
             return
         
         try:
-            target_user_id = int(context.args[0])
-            db.block_user(target_user_id)
-            await update.message.reply_text(f"✅ User {target_user_id} has been blocked.")
+            user_id = int(context.args[0])
+            db.block_user(user_id)
+            await update.message.reply_text(f"✅ User {user_id} has been blocked.")
         except ValueError:
             await update.message.reply_text("❌ Invalid user ID.")
 
     async def admin_unblock(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
         if not context.args:
-            await update.message.reply_text("❌ Usage: /unblock <user_id>")
+            await update.message.reply_text("❌ Please provide user ID. Usage: /unblock <user_id>")
             return
         
         try:
-            target_user_id = int(context.args[0])
-            db.unblock_user(target_user_id)
-            await update.message.reply_text(f"✅ User {target_user_id} has been unblocked.")
+            user_id = int(context.args[0])
+            db.unblock_user(user_id)
+            await update.message.reply_text(f"✅ User {user_id} has been unblocked.")
         except ValueError:
             await update.message.reply_text("❌ Invalid user ID.")
 
     async def admin_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
         admins = db.get_admins()
         
         if not admins:
-            await update.message.reply_text("👥 No admins found.")
+            await update.message.reply_text("❌ No admins found.")
             return
         
-        message_text = "👥 **Admin List:**\n\n"
+        admin_list = "👑 **Admin List:**\n\n"
         for admin in admins:
-            message_text += f"• {admin['user_id']}\n"
+            admin_list += f"• {admin['user_id']}\n"
         
-        await update.message.reply_text(message_text, parse_mode='Markdown')
+        await update.message.reply_text(admin_list, parse_mode='Markdown')
 
     async def admin_promote(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
         if not context.args:
-            await update.message.reply_text("❌ Usage: /promote <user_id>")
+            await update.message.reply_text("❌ Please provide user ID. Usage: /promote <user_id>")
             return
         
         try:
-            target_user_id = int(context.args[0])
-            db.add_admin(target_user_id, user_id)
-            await update.message.reply_text(f"✅ User {target_user_id} has been promoted to admin.")
+            user_id = int(context.args[0])
+            db.add_admin(user_id, update.effective_user.id)
+            await update.message.reply_text(f"✅ User {user_id} has been promoted to admin.")
         except ValueError:
             await update.message.reply_text("❌ Invalid user ID.")
 
     async def admin_remove(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
         if not context.args:
-            await update.message.reply_text("❌ Usage: /remove <user_id>")
+            await update.message.reply_text("❌ Please provide user ID. Usage: /remove <user_id>")
             return
         
         try:
-            target_user_id = int(context.args[0])
-            if target_user_id == INITIAL_ADMIN_ID:
+            user_id = int(context.args[0])
+            if user_id == INITIAL_ADMIN_ID:
                 await update.message.reply_text("❌ Cannot remove the initial admin.")
                 return
             
-            db.remove_admin(target_user_id)
-            await update.message.reply_text(f"✅ User {target_user_id} has been removed from admin.")
+            db.remove_admin(user_id)
+            await update.message.reply_text(f"✅ User {user_id} has been removed from admin.")
         except ValueError:
             await update.message.reply_text("❌ Invalid user ID.")
 
     async def admin_fjoin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
-            await update.message.reply_text("❌ You are not authorized to use this command.")
-            return
-        
-        if len(context.args) != 2:
-            await update.message.reply_text("❌ Usage: /fjoin <group_id> <group_link>")
-            return
-        
-        try:
-            group_id = int(context.args[0])
-            group_link = context.args[1]
-            
-            db.add_force_join_group(group_id, group_link, user_id)
-            await update.message.reply_text(f"✅ Force join group added: {group_id}")
-        except ValueError:
-            await update.message.reply_text("❌ Invalid group ID.")
-
-    async def admin_remove_fjoin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        
-        if not db.is_admin(user_id):
+        if not db.is_admin(update.effective_user.id):
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
         if not context.args:
-            await update.message.reply_text("❌ Usage: /removefjoin <group_id>")
+            await update.message.reply_text("❌ Please provide group link. Usage: /fjoin <group_link>")
             return
         
+        group_link = context.args[0]
+        
+        # Extract group ID from link
         try:
-            group_id = int(context.args[0])
-            db.remove_force_join_group(group_id)
-            await update.message.reply_text(f"✅ Force join group removed: {group_id}")
-        except ValueError:
-            await update.message.reply_text("❌ Invalid group ID.")
-
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        message = update.message
-        
-        # Check if user is eligible
-        if not await self.check_user_eligibility(update, context, silent=True):
-            return
-        
-        user_data = db.get_user(user_id)
-        partner_id = user_data['chat_partner']
-        
-        if not partner_id:
-            return  # User not in chat, ignore message
-        
-        # Check for links
-        if re.search(r'http[s]?://|www\.|t\.me|@', message.text or ''):
-            await message.reply_text("❌ Links are not allowed in chats.")
-            return
-        
-        # Forward message to partner
-        try:
-            if message.text:
-                await context.bot.send_message(chat_id=partner_id, text=message.text)
-                db.log_message(user_id, partner_id, "text", message.text)
-            elif message.photo:
-                await context.bot.send_photo(chat_id=partner_id, photo=message.photo[-1].file_id)
-                db.log_message(user_id, partner_id, "photo", "Photo sent")
-            elif message.voice:
-                await context.bot.send_voice(chat_id=partner_id, voice=message.voice.file_id)
-                db.log_message(user_id, partner_id, "voice", "Voice message sent")
-            elif message.sticker:
-                await context.bot.send_sticker(chat_id=partner_id, sticker=message.sticker.file_id)
-                db.log_message(user_id, partner_id, "sticker", "Sticker sent")
+            if "joinchat" in group_link:
+                await update.message.reply_text("❌ Please provide a public group link (not invite link).")
+                return
             
-            # Log to admin group
-            try:
-                log_message = f"💬 Chat Log\n👤 From: {user_id}\n👤 To: {partner_id}\n📝 Message: {message.text or 'Media file'}"
-                await context.bot.send_message(chat_id=LOG_GROUP_ID, text=log_message)
-            except:
-                pass
-                
+            if "@" in group_link:
+                group_username = group_link.split("@")[-1]
+                chat = await context.bot.get_chat(f"@{group_username}")
+                group_id = chat.id
+            else:
+                await update.message.reply_text("❌ Invalid group link format.")
+                return
+            
+            db.add_force_join_group(group_id, group_link, update.effective_user.id)
+            await update.message.reply_text(f"✅ Group added to force join list: {group_link}")
+            
         except Exception as e:
-            await message.reply_text("❌ Failed to send message to your chat partner.")
-            logger.error(f"Failed to forward message: {e}")
+            await update.message.reply_text(f"❌ Error adding group: {str(e)}")
 
-    async def check_user_eligibility(self, update: Update, context: ContextTypes.DEFAULT_TYPE, silent=False):
-        user_id = update.effective_user.id
-        user_data = db.get_user(user_id)
+    async def admin_remove_fjoin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not db.is_admin(update.effective_user.id):
+            await update.message.reply_text("❌ You are not authorized to use this command.")
+            return
         
-        if not user_data:
-            if not silent:
-                await update.message.reply_text("❌ Please start the bot first with /start")
-            return False
+        if not context.args:
+            await update.message.reply_text("❌ Please provide group ID or link. Usage: /removefjoin <group_id_or_link>")
+            return
         
-        if user_data['is_blocked']:
-            if not silent:
-                await update.message.reply_text("❌ You are blocked from using this bot.")
-            return False
+        try:
+            # Try as group ID first
+            group_id = int(context.args[0])
+        except ValueError:
+            # Try as group link
+            group_link = context.args[0]
+            try:
+                if "@" in group_link:
+                    group_username = group_link.split("@")[-1]
+                    chat = await context.bot.get_chat(f"@{group_username}")
+                    group_id = chat.id
+                else:
+                    await update.message.reply_text("❌ Invalid group ID or link format.")
+                    return
+            except:
+                await update.message.reply_text("❌ Could not find group.")
+                return
         
-        if not user_data['agreed_terms']:
-            if not silent:
-                await update.message.reply_text("❌ Please agree to terms first with /start")
-            return False
-        
-        if not user_data['profile_completed']:
-            if not silent:
-                await update.message.reply_text("❌ Please complete your profile first with /start")
-            return False
-        
-        # Check force join compliance
-        force_join_groups = db.get_force_join_groups()
-        if force_join_groups:
-            for group in force_join_groups:
-                try:
-                    member = await context.bot.get_chat_member(group['group_id'], user_id)
-                    if member.status in ['left', 'kicked']:
-                        if not silent:
-                            await update.message.reply_text("❌ You must join all required groups to use this bot. Use /start to check compliance.")
-                        return False
-                except:
-                    if not silent:
-                        await update.message.reply_text("❌ You must join all required groups to use this bot. Use /start to check compliance.")
-                    return False
-        
-        return True
+        db.remove_force_join_group(group_id)
+        await update.message.reply_text(f"✅ Group {group_id} removed from force join list.")
 
     def run(self):
-        self.application.run_polling(drop_pending_updates=True)
+        self.application.run_polling()
+
+if __name__ == "__main__":
+    if not BOT_TOKEN:
+        print("BOT_TOKEN environment variable is required!")
+        exit(1)
+    
+    bot = TelegramBot()
+    print("Bot is starting...")
+    bot.run()
