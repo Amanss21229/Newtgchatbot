@@ -348,17 +348,19 @@ class Database:
         if not self._ensure_connection():
             print(f"Database not available - skipping update_user_terms for {user_id}")
             return
+            
         try:
             cursor = self.connection.cursor()
             placeholder = self._placeholder()
 
-            # First try update
+            # Try update first
             cursor.execute(f'''
-                UPDATE users SET agreed_terms = {placeholder}, updated_at = CURRENT_TIMESTAMP 
+                UPDATE users 
+                SET agreed_terms = {placeholder}, updated_at = CURRENT_TIMESTAMP 
                 WHERE user_id = {placeholder}
             ''', (agreed, user_id))
 
-            # If no rows updated → insert new user
+            # If user does not exist → insert new record
             if cursor.rowcount == 0:
                 if self.is_sqlite:
                     cursor.execute(f'''
@@ -371,13 +373,13 @@ class Database:
                         VALUES ({placeholder}, {placeholder}, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT (user_id) DO NOTHING
                     ''', (user_id, agreed))
-                    
-            self.connection.commit()
-            cursor.close()
-        except Exception as e:
-            print(f"Error in update_user_terms: {e}")
 
-    def update_user_profile(self, user_id, gender=None, country=None, age=None):
+        self.connection.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error in update_user_terms: {e}")
+
+    def update_user_profile(self, user_id, gender=None, country=None, age=None, profile_completed=None):
         if not self._ensure_connection():
             print(f"Database not available - skipping update_user_profile for {user_id}")
             return
@@ -386,7 +388,7 @@ class Database:
             placeholder = self._placeholder()
             updates = []
             values = []
-            
+
             if gender:
                 updates.append(f'gender = {placeholder}')
                 values.append(gender)
@@ -396,19 +398,20 @@ class Database:
             if age:
                 updates.append(f'age = {placeholder}')
                 values.append(age)
-            
-            if updates:
+            if profile_completed is not None:
                 if self.is_sqlite:
-                    updates.append('profile_completed = 1')
+                    updates.append(f'profile_completed = {1 if profile_completed else 0}')
                 else:
-                    updates.append('profile_completed = TRUE')
+                    updates.append(f'profile_completed = {"TRUE" if profile_completed else "FALSE"}')
+
+            if updates:
                 updates.append('updated_at = CURRENT_TIMESTAMP')
                 values.append(user_id)
-                
+
                 query = f'UPDATE users SET {", ".join(updates)} WHERE user_id = {placeholder}'
                 cursor.execute(query, values)
 
-                # If user didn't exist → insert
+                # If no rows were updated → insert new row
                 if cursor.rowcount == 0:
                     if self.is_sqlite:
                         cursor.execute(f'''
@@ -422,10 +425,10 @@ class Database:
                             ON CONFLICT (user_id) DO NOTHING
                         ''', (user_id, gender, country, age))
 
-            self.connection.commit()            
-            cursor.close()
-        except Exception as e:
-            print(f"Error in update_user_profile: {e}")
+        self.connection.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error in update_user_profile: {e}")
 
     def is_admin(self, user_id):
         if not self._ensure_connection():
