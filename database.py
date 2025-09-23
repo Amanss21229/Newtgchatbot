@@ -351,16 +351,28 @@ class Database:
         try:
             cursor = self.connection.cursor()
             placeholder = self._placeholder()
-            if self.is_sqlite:
-                cursor.execute(f'''
-                    UPDATE users SET agreed_terms = {placeholder}, updated_at = CURRENT_TIMESTAMP 
-                    WHERE user_id = {placeholder}
-                ''', (agreed, user_id))
-            else:
-                cursor.execute(f'''
-                    UPDATE users SET agreed_terms = {placeholder}, updated_at = CURRENT_TIMESTAMP 
-                    WHERE user_id = {placeholder}
-                ''', (agreed, user_id))
+
+            # First try update
+            cursor.execute(f'''
+                UPDATE users SET agreed_terms = {placeholder}, updated_at = CURRENT_TIMESTAMP 
+                WHERE user_id = {placeholder}
+            ''', (agreed, user_id))
+
+            # If no rows updated → insert new user
+            if cursor.rowcount == 0:
+                if self.is_sqlite:
+                    cursor.execute(f'''
+                        INSERT INTO users (user_id, agreed_terms, profile_completed, created_at, updated_at)
+                        VALUES ({placeholder}, {placeholder}, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ''', (user_id, agreed))
+                else:
+                    cursor.execute(f'''
+                        INSERT INTO users (user_id, agreed_terms, profile_completed, created_at, updated_at)
+                        VALUES ({placeholder}, {placeholder}, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT (user_id) DO NOTHING
+                    ''', (user_id, agreed))
+                    
+            self.connection.commit()
             cursor.close()
         except Exception as e:
             print(f"Error in update_user_terms: {e}")
@@ -395,6 +407,22 @@ class Database:
                 
                 query = f'UPDATE users SET {", ".join(updates)} WHERE user_id = {placeholder}'
                 cursor.execute(query, values)
+
+                # If user didn't exist → insert
+                if cursor.rowcount == 0:
+                    if self.is_sqlite:
+                        cursor.execute(f'''
+                            INSERT INTO users (user_id, gender, country, age, profile_completed, created_at, updated_at)
+                            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ''', (user_id, gender, country, age))
+                    else:
+                        cursor.execute(f'''
+                            INSERT INTO users (user_id, gender, country, age, profile_completed, created_at, updated_at)
+                            VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            ON CONFLICT (user_id) DO NOTHING
+                        ''', (user_id, gender, country, age))
+
+        self.connection.commit()            
             cursor.close()
         except Exception as e:
             print(f"Error in update_user_profile: {e}")
