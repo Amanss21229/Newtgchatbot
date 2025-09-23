@@ -356,7 +356,7 @@ By clicking "Agree", you accept these terms and conditions.
 
     async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message_text = """
-🤖 **Welcome to BoyGirlChatBot!**
+🤖 **Welcome to BoysGirlsChatBot!**
 
 Available commands:
 🗨️ /chat - Find a random chat partner
@@ -471,7 +471,7 @@ Enjoy chatting anonymously!
         user_id = update.effective_user.id if update.effective_user else update.callback_query.from_user.id
         user_data = db.get_user(user_id)
         
-        referral_link = f"https://t.me/BoyGirlChatBot?start={user_id}"
+        referral_link = f"https://t.me/BoysGirlsChatBot?start={user_id}"
         message_text = f"""
 🔗 **Your Referral Link:**
 {referral_link}
@@ -492,10 +492,10 @@ Enjoy chatting anonymously!
 
     async def show_vip_purchase_options(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
-            [InlineKeyboardButton("1 Day - 2 ⭐", callback_data="buy_vip_1_2")],
-            [InlineKeyboardButton("14 Days - 25 ⭐", callback_data="buy_vip_14_25")],
-            [InlineKeyboardButton("1 Month - 50 ⭐", callback_data="buy_vip_30_50")],
-            [InlineKeyboardButton("3 Months - 100 ⭐", callback_data="buy_vip_90_100")]
+            [InlineKeyboardButton("1 Day - 10 ⭐", callback_data="buy_vip_1_10")],
+            [InlineKeyboardButton("5 Days - 25 ⭐", callback_data="buy_vip_5_25")],
+            [InlineKeyboardButton("12 Days - 50 ⭐", callback_data="buy_vip_12_50")],
+            [InlineKeyboardButton("1 Months - 100 ⭐", callback_data="buy_vip_30_100")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
