@@ -422,7 +422,7 @@ class Database:
                             ON CONFLICT (user_id) DO NOTHING
                         ''', (user_id, gender, country, age))
 
-        self.connection.commit()            
+            self.connection.commit()            
             cursor.close()
         except Exception as e:
             print(f"Error in update_user_profile: {e}")
