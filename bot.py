@@ -171,9 +171,11 @@ By clicking "Agree", you accept these terms and conditions.
             
         elif data.startswith("age_"):
             age = int(data.split("_")[1])
-            db.update_user_profile(user_id, age=age)
+            # Save age and mark profile as completed
+            db.update_user_profile(user_id, age=age, profile_completed=True)
             await query.edit_message_text(f"✅ Age set to: {age}")
             await self.check_force_join_compliance(update, context)
+
             
         elif data == "vip_refer":
             await self.show_referral_info(update, context)
