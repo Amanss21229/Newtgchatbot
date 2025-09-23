@@ -373,11 +373,11 @@ class Database:
                         VALUES ({placeholder}, {placeholder}, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         ON CONFLICT (user_id) DO NOTHING
                     ''', (user_id, agreed))
-
-        self.connection.commit()
-        cursor.close()
-    except Exception as e:
-        print(f"Error in update_user_terms: {e}")
+                    
+            self.connection.commit()
+            cursor.close()
+        except Exception as e:
+            print(f"Error in update_user_terms: {e}")
 
     def update_user_profile(self, user_id, gender=None, country=None, age=None, profile_completed=None):
         if not self._ensure_connection():
