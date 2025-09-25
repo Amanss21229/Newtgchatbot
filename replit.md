@@ -67,7 +67,14 @@ Preferred communication style: Simple, everyday language.
 - **Replit PostgreSQL**: Default database service on Replit platform
 
 ### Environment Variables
-- **BOT_TOKEN**: Telegram bot authentication token
-- **DATABASE_URL**: PostgreSQL connection string (optional)
-- **PG* Variables**: PostgreSQL connection parameters (PGHOST, PGDATABASE, PGUSER, PGPASSWORD, PGPORT)
-- **PORT**: Flask web server port for deployment platforms
+- **BOT_TOKEN**: Telegram bot authentication token (REQUIRED - must be set by user)
+- **DATABASE_URL**: PostgreSQL connection string (configured by Replit)
+- **PG* Variables**: PostgreSQL connection parameters (configured by Replit: PGHOST, PGDATABASE, PGUSER, PGPASSWORD, PGPORT)
+- **PORT**: Flask web server port for deployment platforms (defaults to 5000)
+
+## Setup Status
+- ✅ Dependencies installed (python-telegram-bot, flask, psycopg2-binary, etc.)
+- ✅ PostgreSQL database configured with Replit's built-in service
+- ⚠️ BOT_TOKEN required: User must add their Telegram bot token to Secrets
+- ✅ Flask server configured for port 5000
+- ✅ Multi-database fallback system (PostgreSQL → SQLite)
