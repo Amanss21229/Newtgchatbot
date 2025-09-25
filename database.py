@@ -75,17 +75,31 @@ class Database:
 
     def _ensure_connection(self):
         if self.connection is None:
-            return False
+            try:
+                self.__init__()  # Reinitialize connection
+                return self.connection is not None
+            except:
+                return False
         try:
             if hasattr(self.connection, 'closed') and self.connection.closed:
-                return False
+                # Connection is closed, try to reconnect
+                try:
+                    self._connect()
+                    return True
+                except:
+                    return False
             # Test connection
             cursor = self.connection.cursor()
             cursor.execute('SELECT 1')
             cursor.close()
             return True
         except:
-            return False
+            # Connection failed, try to reconnect
+            try:
+                self._connect()
+                return True
+            except:
+                return False
     
     def _placeholder(self):
         """Return the correct parameter placeholder for the database type"""
