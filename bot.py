@@ -109,8 +109,8 @@ class TelegramBot:
         
         # Check if user already agreed to terms
         user_data = db.get_user(user.id)
-        if user_data and user_data['agreed_terms']:
-            if user_data['profile_completed']:
+        if user_data and bool(user_data['agreed_terms']):
+            if bool(user_data['profile_completed']):
                 await self.check_force_join_compliance(update, context)
             else:
                 await self.setup_profile(update, context)
@@ -716,15 +716,20 @@ Enjoy chatting anonymously!
             await update.message.reply_text("❌ Please start the bot first with /start")
             return False
         
-        if user_data['is_blocked']:
+        # Normalize boolean values to handle SQLite (0/1) vs PostgreSQL (bool) differences
+        is_blocked = bool(user_data['is_blocked'])
+        agreed_terms = bool(user_data['agreed_terms'])
+        profile_completed = bool(user_data['profile_completed'])
+        
+        if is_blocked:
             await update.message.reply_text("❌ You are blocked from using this bot.")
             return False
         
-        if not user_data['agreed_terms']:
+        if not agreed_terms:
             await update.message.reply_text("❌ Please agree to terms first with /start")
             return False
         
-        if not user_data['profile_completed']:
+        if not profile_completed:
             await update.message.reply_text("❌ Please complete your profile first.")
             return False
         
