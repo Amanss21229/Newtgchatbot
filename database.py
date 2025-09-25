@@ -52,10 +52,22 @@ class Database:
                 self.is_sqlite = False
 
     def _connect(self):
+        """Reconnect to the database using current environment variables"""
         try:
             if self.connection:
                 self.connection.close()
-            self.connection = psycopg2.connect(**self.connection_params)
+            # Try DATABASE_URL first, then individual parameters
+            database_url = os.getenv('DATABASE_URL')
+            if database_url and 'neon' not in database_url:
+                self.connection = psycopg2.connect(database_url)
+            else:
+                self.connection = psycopg2.connect(
+                    host=os.getenv('PGHOST', 'db.local'),
+                    database=os.getenv('PGDATABASE', 'replit'),
+                    user=os.getenv('PGUSER', 'replit'),
+                    password=os.getenv('PGPASSWORD', ''),
+                    port=os.getenv('PGPORT', '5432')
+                )
             self.connection.autocommit = True
         except Exception as e:
             print(f"Database connection error: {e}")
