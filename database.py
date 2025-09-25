@@ -915,6 +915,125 @@ class Database:
             'vip_users': vip_users
         }
 
+    def get_detailed_stats(self):
+        """Get comprehensive bot statistics"""
+        if not self._ensure_connection():
+            return {
+                'total_users': 0, 'male_users': 0, 'female_users': 0, 
+                'active_chats': 0, 'total_messages': 0, 'vip_users': 0,
+                'blocked_users': 0, 'live_male_users': 0, 'live_female_users': 0,
+                'completed_profiles': 0, 'total_referrals': 0
+            }
+        
+        if self.is_sqlite:
+            cursor = self.connection.cursor()
+            
+            # Total users who agreed to terms
+            cursor.execute('SELECT COUNT(*) FROM users WHERE agreed_terms = 1')
+            total_users = cursor.fetchone()[0] or 0
+            
+            # Male and Female users
+            cursor.execute('SELECT COUNT(*) FROM users WHERE gender = "Male" AND agreed_terms = 1')
+            male_users = cursor.fetchone()[0] or 0
+            
+            cursor.execute('SELECT COUNT(*) FROM users WHERE gender = "Female" AND agreed_terms = 1') 
+            female_users = cursor.fetchone()[0] or 0
+            
+            # Active chats
+            cursor.execute('SELECT COUNT(*) FROM users WHERE chat_partner IS NOT NULL')
+            active_chats = cursor.fetchone()[0] or 0
+            
+            # Total messages
+            cursor.execute('SELECT COUNT(*) FROM message_logs')
+            total_messages = cursor.fetchone()[0] or 0
+            
+            # VIP users
+            cursor.execute("SELECT COUNT(*) FROM users WHERE is_vip = 1 AND datetime(vip_until) > datetime('now')")
+            vip_users = cursor.fetchone()[0] or 0
+            
+            # Blocked users
+            cursor.execute('SELECT COUNT(*) FROM users WHERE is_blocked = 1')
+            blocked_users = cursor.fetchone()[0] or 0
+            
+            # Live users (looking for chat)
+            cursor.execute('SELECT COUNT(*) FROM users WHERE looking_for_chat = 1 AND gender = "Male"')
+            live_male_users = cursor.fetchone()[0] or 0
+            
+            cursor.execute('SELECT COUNT(*) FROM users WHERE looking_for_chat = 1 AND gender = "Female"')
+            live_female_users = cursor.fetchone()[0] or 0
+            
+            # Completed profiles
+            cursor.execute('SELECT COUNT(*) FROM users WHERE profile_completed = 1')
+            completed_profiles = cursor.fetchone()[0] or 0
+            
+            # Total referrals made
+            cursor.execute('SELECT SUM(referral_count) FROM users')
+            result = cursor.fetchone()
+            total_referrals = result[0] if result and result[0] else 0
+            
+            cursor.close()
+        else:
+            cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Total users who agreed to terms
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE agreed_terms = TRUE')
+            total_users = cursor.fetchone()['count'] or 0
+            
+            # Male and Female users
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE gender = %s AND agreed_terms = TRUE', ('Male',))
+            male_users = cursor.fetchone()['count'] or 0
+            
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE gender = %s AND agreed_terms = TRUE', ('Female',))
+            female_users = cursor.fetchone()['count'] or 0
+            
+            # Active chats
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE chat_partner IS NOT NULL')
+            active_chats = cursor.fetchone()['count'] or 0
+            
+            # Total messages
+            cursor.execute('SELECT COUNT(*) as count FROM message_logs')
+            total_messages = cursor.fetchone()['count'] or 0
+            
+            # VIP users
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE is_vip = TRUE AND vip_until > CURRENT_TIMESTAMP')
+            vip_users = cursor.fetchone()['count'] or 0
+            
+            # Blocked users
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE is_blocked = TRUE')
+            blocked_users = cursor.fetchone()['count'] or 0
+            
+            # Live users (looking for chat)
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE looking_for_chat = TRUE AND gender = %s', ('Male',))
+            live_male_users = cursor.fetchone()['count'] or 0
+            
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE looking_for_chat = TRUE AND gender = %s', ('Female',))
+            live_female_users = cursor.fetchone()['count'] or 0
+            
+            # Completed profiles
+            cursor.execute('SELECT COUNT(*) as count FROM users WHERE profile_completed = TRUE')
+            completed_profiles = cursor.fetchone()['count'] or 0
+            
+            # Total referrals made
+            cursor.execute('SELECT SUM(referral_count) as total FROM users')
+            result = cursor.fetchone()
+            total_referrals = result['total'] if result and result['total'] else 0
+            
+            cursor.close()
+        
+        return {
+            'total_users': total_users,
+            'male_users': male_users,
+            'female_users': female_users,
+            'active_chats': active_chats // 2,  # Divide by 2 since each chat involves 2 users
+            'total_messages': total_messages,
+            'vip_users': vip_users,
+            'blocked_users': blocked_users,
+            'live_male_users': live_male_users,
+            'live_female_users': live_female_users,
+            'completed_profiles': completed_profiles,
+            'total_referrals': total_referrals
+        }
+
     def get_all_users(self):
         if not self._ensure_connection():
             return []

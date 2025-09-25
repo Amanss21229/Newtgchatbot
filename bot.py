@@ -799,17 +799,34 @@ Enjoy chatting anonymously!
             await update.message.reply_text("❌ You are not authorized to use this command.")
             return
         
-        stats = db.get_stats()
+        stats = db.get_detailed_stats()
         force_join_groups = db.get_force_join_groups()
         
         stats_message = f"""
-📊 **Bot Statistics**
+📊 **Detailed Bot Statistics**
 
-👥 **Total Users:** {stats['total_users']}
-💬 **Active Chats:** {stats['active_chats']}
-📝 **Total Messages:** {stats['total_messages']}
-👑 **VIP Users:** {stats['vip_users']}
-🔒 **Force Join Groups:** {len(force_join_groups)}
+👥 **User Statistics:**
+• Total Users: {stats['total_users']}
+• 👨 Male Users: {stats['male_users']}
+• 👩 Female Users: {stats['female_users']}
+• ✅ Completed Profiles: {stats['completed_profiles']}
+• ❌ Blocked Users: {stats['blocked_users']}
+
+🟢 **Live Users (Currently Active):**
+• 👨 Live Male Users: {stats['live_male_users']}
+• 👩 Live Female Users: {stats['live_female_users']}
+• 📱 Total Live Users: {stats['live_male_users'] + stats['live_female_users']}
+
+💬 **Chat Statistics:**
+• Active Chat Sessions: {stats['active_chats']}
+• Total Messages Sent: {stats['total_messages']}
+
+👑 **Premium Statistics:**
+• VIP Users: {stats['vip_users']}
+• Total Referrals Made: {stats['total_referrals']}
+
+🔒 **System Settings:**
+• Force Join Groups: {len(force_join_groups)}
 
 ⏰ **Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         """
