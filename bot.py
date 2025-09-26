@@ -610,7 +610,7 @@ class TelegramBot:
         user_id = update.effective_user.id if update.effective_user else update.callback_query.from_user.id
         user_data = db.get_user(user_id)
         
-        referral_link = f"https://t.me/BoysGirlsChatBot?start={user_id}"
+        referral_link = f"https://t.me/GF_BF_CHATBOT?start={user_id}"
         message_text = f"""
 ╔══════════════════════════════════╗
 ║  🌟 **REFERRAL EMPIRE** 🌟   ║
