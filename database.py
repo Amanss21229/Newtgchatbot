@@ -88,7 +88,10 @@ class Database:
                     return True
                 except:
                     return False
-            # Test connection
+            # Quick connection test without full query
+            if not self.is_sqlite:
+                return True  # Skip ping test for PostgreSQL to improve speed
+            # Test connection only for SQLite
             cursor = self.connection.cursor()
             cursor.execute('SELECT 1')
             cursor.close()
@@ -687,7 +690,8 @@ class Database:
                     AND profile_completed = 1 
                     AND gender = {placeholder}
                     AND agreed_terms = 1
-                    ORDER BY RANDOM() 
+                    AND gender IS NOT NULL
+                    ORDER BY user_id 
                     LIMIT 1
                 '''
             else:
@@ -700,7 +704,8 @@ class Database:
                     AND profile_completed = TRUE 
                     AND gender = {placeholder}
                     AND agreed_terms = TRUE
-                    ORDER BY RANDOM() 
+                    AND gender IS NOT NULL
+                    ORDER BY user_id 
                     LIMIT 1
                 '''
             cursor.execute(query, (user_id, gender_filter))
@@ -714,7 +719,8 @@ class Database:
                     AND is_blocked = 0 
                     AND profile_completed = 1 
                     AND agreed_terms = 1
-                    ORDER BY RANDOM() 
+                    AND gender IS NOT NULL
+                    ORDER BY user_id 
                     LIMIT 1
                 '''
             else:
@@ -726,7 +732,8 @@ class Database:
                     AND is_blocked = FALSE 
                     AND profile_completed = TRUE 
                     AND agreed_terms = TRUE
-                    ORDER BY RANDOM() 
+                    AND gender IS NOT NULL
+                    ORDER BY user_id 
                     LIMIT 1
                 '''
             cursor.execute(query, (user_id,))

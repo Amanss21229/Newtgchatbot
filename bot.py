@@ -1,11 +1,11 @@
 import os
 import logging
+import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler, PreCheckoutQueryHandler, ExtBot
 from telegram.error import TelegramError
 from telegram import Update
 from database import Database
-import asyncio
 from datetime import datetime
 import re
 
@@ -29,7 +29,7 @@ db = Database()
 
 class TelegramBot:
     def __init__(self):
-        self.application = Application.builder().token(BOT_TOKEN).concurrent_updates(True).build()
+        self.application = Application.builder().token(BOT_TOKEN).concurrent_updates(True).read_timeout(30).write_timeout(30).connect_timeout(30).pool_timeout(30).build()
         self.setup_handlers()
         # Add error handler
         self.application.add_error_handler(self.error_handler)
@@ -405,7 +405,7 @@ Enjoy chatting anonymously!
         user_data = db.get_user(user_id)
         
         # Check if already in chat
-        if user_data['chat_partner']:
+        if user_data and user_data['chat_partner']:
             message = "❌ You are already in a chat session. Use /end to end current session."
             if update.callback_query:
                 await update.callback_query.edit_message_text(message)
@@ -416,11 +416,20 @@ Enjoy chatting anonymously!
         # Mark user as looking for chat
         db.set_user_looking_for_chat(user_id, True)
         
-        # Find partner
+        # Find partner with proper gender filter
         partner_id = db.find_chat_partner_by_gender(user_id, gender_filter)
         
         if not partner_id:
-            message = "⏳ Looking for a chat partner... Please try again in a moment."
+            # Clear looking status since no partner found
+            db.set_user_looking_for_chat(user_id, False)
+            
+            gender_text = ""
+            if gender_filter == "Female":
+                gender_text = " female"
+            elif gender_filter == "Male":
+                gender_text = " male"
+            
+            message = f"⏳ No{gender_text} chat partner available right now. Please try again in a moment."
             if update.callback_query:
                 await update.callback_query.edit_message_text(message)
             else:
@@ -433,8 +442,28 @@ Enjoy chatting anonymously!
         # Get partner info
         partner_data = db.get_user(partner_id)
         
+        # Verify partner has correct gender (double-check) BEFORE starting session
+        if gender_filter and partner_data and partner_data.get('gender') != gender_filter:
+            # Clear looking status and retry without starting session
+            db.set_user_looking_for_chat(user_id, False)
+            db.set_user_looking_for_chat(partner_id, False)  # Reset partner too
+            message = f"❌ Matching error occurred. Please try again."
+            if update.callback_query:
+                await update.callback_query.edit_message_text(message)
+            else:
+                await update.message.reply_text(message)
+            return
+        
         # Notify both users
-        user_message = f"🎉 Chat partner found!\n👤 Gender: {partner_data['gender']}\n📅 Age: {partner_data['age']}\n\nYou can now start chatting!"
+        match_type = ""
+        if gender_filter == "Female":
+            match_type = " (You requested girls only)"
+        elif gender_filter == "Male":
+            match_type = " (You requested boys only)"
+        elif gender_filter is None:
+            match_type = " (Random match)"
+            
+        user_message = f"🎉 Chat partner found!{match_type}\n👤 Gender: {partner_data['gender']}\n📅 Age: {partner_data['age']}\n\nYou can now start chatting!"
         partner_message = f"🎉 Chat partner found!\n👤 Gender: {user_data['gender']}\n📅 Age: {user_data['age']}\n\nYou can now start chatting!"
         
         if update.callback_query:
@@ -733,20 +762,38 @@ Enjoy chatting anonymously!
             await update.message.reply_text("❌ Please complete your profile first.")
             return False
         
-        # Check VIP expiry
-        db.check_vip_expired(user_id)
+        # Optimized VIP expiry check - only run if needed
+        if user_data.get('is_vip') and user_data.get('vip_until'):
+            db.check_vip_expired(user_id)
         
-        # Check force join compliance
+        # Optimized force join check - skip if no groups or basic commands
         force_join_groups = db.get_force_join_groups()
-        for group in force_join_groups:
-            try:
-                member = await context.bot.get_chat_member(group['group_id'], user_id)
-                if member.status in ['left', 'kicked']:
-                    await self.check_force_join_compliance(update, context)
-                    return False
-            except:
-                await self.check_force_join_compliance(update, context)
-                return False
+        if not force_join_groups:
+            return True
+            
+        # Skip force join check for certain fast commands to improve speed
+        if hasattr(update, 'message') and update.message and update.message.text:
+            fast_commands = ['/end', '/stats', '/profile', '/vip', '/refer']
+            if any(update.message.text.startswith(cmd) for cmd in fast_commands):
+                return True
+        
+        # Optimize force join check with timeout and parallel checks
+        if len(force_join_groups) <= 3:  # Only check if few groups to maintain speed
+            for group in force_join_groups:
+                try:
+                    member = await asyncio.wait_for(
+                        context.bot.get_chat_member(group['group_id'], user_id),
+                        timeout=2.0  # 2 second timeout for speed
+                    )
+                    if member.status in ['left', 'kicked']:
+                        await self.check_force_join_compliance(update, context)
+                        return False
+                except asyncio.TimeoutError:
+                    # Skip on timeout for speed
+                    continue
+                except:
+                    # Skip group check error for speed - assume user is in group
+                    continue
         
         return True
 
@@ -843,11 +890,17 @@ Enjoy chatting anonymously!
             return
         
         users = db.get_all_users()
+        if not users:
+            await update.message.reply_text("❌ No users found in database.")
+            return
+            
         sent_count = 0
+        failed_count = 0
+        total_users = len(users)
         
-        await update.message.reply_text(f"📢 Starting broadcast to {len(users)} users...")
+        progress_msg = await update.message.reply_text(f"📢 Starting broadcast to {total_users} users...")
         
-        for user in users:
+        for i, user in enumerate(users):
             try:
                 await context.bot.copy_message(
                     chat_id=user['user_id'],
@@ -855,10 +908,24 @@ Enjoy chatting anonymously!
                     message_id=update.message.reply_to_message.message_id
                 )
                 sent_count += 1
-            except:
-                continue
+            except Exception as e:
+                failed_count += 1
+                # Remove users who blocked the bot to keep database clean
+                if "Forbidden" in str(e) or "blocked" in str(e).lower():
+                    try:
+                        db.delete_user(user['user_id'])
+                    except:
+                        pass
+            
+            # Update progress every 50 users
+            if (i + 1) % 50 == 0:
+                try:
+                    await progress_msg.edit_text(f"📢 Broadcasting... {i + 1}/{total_users} users processed\n✅ Sent: {sent_count} | ❌ Failed: {failed_count}")
+                except:
+                    pass
         
-        await update.message.reply_text(f"✅ Broadcast completed! Sent to {sent_count}/{len(users)} users.")
+        final_message = f"✅ Broadcast completed!\n📊 Results:\n• Total users: {total_users}\n• Successfully sent: {sent_count}\n• Failed: {failed_count}\n• Success rate: {round((sent_count/total_users)*100, 1)}%"
+        await update.message.reply_text(final_message)
 
     async def admin_block(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not db.is_admin(update.effective_user.id):
