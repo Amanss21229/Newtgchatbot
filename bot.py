@@ -118,25 +118,31 @@ class TelegramBot:
         
         # Show Terms and Conditions
         keyboard = [
-            [InlineKeyboardButton("✅ Agree", callback_data="terms_agree")],
-            [InlineKeyboardButton("❌ Not Agree", callback_data="terms_disagree")]
+            [InlineKeyboardButton("💎 ✅ JOIN ELITE COMMUNITY", callback_data="terms_agree")],
+            [InlineKeyboardButton("🚫 ❌ DECLINE ACCESS", callback_data="terms_disagree")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         terms_text = """
-🤖 **Welcome to BoyGirlChatBot!**
+╔══════════════════════════════════╗
+║   🌟 **PREMIUM ANONYMOUS CHAT** 🌟   ║
+╚══════════════════════════════════╝
 
-**Terms and Conditions:**
+💎 **Welcome to the Elite Dating Experience!** 💎
 
-1. This bot is for anonymous chatting between users
-2. No inappropriate content or harassment allowed
-3. Respect other users and maintain decency
-4. Links are not allowed in chats
-5. Users must join required groups to use the bot
-6. Admin decisions are final
-7. Bot logs messages for moderation purposes
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 📜 **Terms & Conditions** 📜
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ 🔸 Premium anonymous chat platform
+┃ 🔸 Zero tolerance for harassment  
+┃ 🔸 Respectful communication only
+┃ 🔸 No external links permitted
+┃ 🔸 VIP group membership required
+┃ 🔸 Admin decisions are absolute
+┃ 🔸 All chats monitored for safety
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-By clicking "Agree", you accept these terms and conditions.
+✨ **By agreeing, you join our exclusive community** ✨
         """
         
         await update.message.reply_text(terms_text, reply_markup=reply_markup, parse_mode='Markdown')
@@ -150,30 +156,30 @@ By clicking "Agree", you accept these terms and conditions.
         
         if data == "terms_agree":
             db.update_user_terms(user_id, True)
-            await query.edit_message_text("✅ Terms accepted! Now let's set up your profile.")
+            await query.edit_message_text("🎉 **WELCOME TO THE ELITE!** 🎉\n\n💎 Let's create your premium profile...", parse_mode='Markdown')
             await self.setup_profile(update, context)
             
         elif data == "terms_disagree":
-            await query.edit_message_text("❌ You must agree to the terms to use this bot. Goodbye!")
+            await query.edit_message_text("💔 **ACCESS DENIED** 💔\n\n🚫 Elite membership requires agreement to our terms.\n\n👋 See you later!", parse_mode='Markdown')
             return
             
         elif data.startswith("gender_"):
             gender = data.split("_")[1]
             db.update_user_profile(user_id, gender=gender)
-            await query.edit_message_text(f"✅ Gender set to: {gender}")
+            await query.edit_message_text(f"🎉 **PERFECT CHOICE!** 🎉\n\n✨ {gender} profile activated", parse_mode='Markdown')
             await self.setup_country(update, context)
             
         elif data.startswith("country_"):
             country = data.split("_")[1]
             db.update_user_profile(user_id, country=country)
-            await query.edit_message_text(f"✅ Country set to: {country}")
+            await query.edit_message_text(f"🌍 **LOCATION CONFIRMED!** 🌍\n\n✨ {country} selected as your territory", parse_mode='Markdown')
             await self.setup_age(update, context)
             
         elif data.startswith("age_"):
             age = int(data.split("_")[1])
             # Save age and mark profile as completed
             db.update_user_profile(user_id, age=age, profile_completed=True)
-            await query.edit_message_text(f"✅ Age set to: {age}")
+            await query.edit_message_text(f"🎂 **AGE VERIFIED!** 🎂\n\n✨ {age} age category locked in", parse_mode='Markdown')
             await self.check_force_join_compliance(update, context)
 
             
@@ -195,13 +201,13 @@ By clicking "Agree", you accept these terms and conditions.
             if user_data and user_data['is_vip'] and user_data['vip_until'] and datetime.fromisoformat(str(user_data['vip_until'])) > datetime.now():
                 await self.partner_filter_menu(update, context)
             else:
-                await query.edit_message_text("🔒 This feature is only available for VIP users. Use /vip to get VIP status.")
+                await query.edit_message_text("🔒 **VIP EXCLUSIVE** 🔒\n\n👑 This feature requires VIP membership\n💎 Use `/vip` to unlock premium features", parse_mode='Markdown')
                 
         elif data.startswith("filter_"):
             gender_filter = data.split("_")[1] if data.split("_")[1] != "any" else None
             db.update_partner_filter(user_id, gender_filter)
             filter_text = gender_filter if gender_filter else "Any"
-            await query.edit_message_text(f"✅ Partner filter set to: {filter_text}")
+            await query.edit_message_text(f"🎯 **FILTER UPDATED!** 🎯\n\n✨ Partner preference: **{filter_text}**", parse_mode='Markdown')
             
         elif data == "edit_gender":
             keyboard = [
@@ -236,17 +242,17 @@ By clicking "Agree", you accept these terms and conditions.
         elif data.startswith("update_gender_"):
             new_gender = data.split("_")[2]
             db.update_user_profile(user_id, gender=new_gender)
-            await query.edit_message_text(f"✅ Gender updated to: {new_gender}")
+            await query.edit_message_text(f"🎭 **PROFILE UPDATED!** 🎭\n\n✨ Gender changed to: **{new_gender}**", parse_mode='Markdown')
             
         elif data.startswith("update_country_"):
             new_country = data.split("_")[2]
             db.update_user_profile(user_id, country=new_country)
-            await query.edit_message_text(f"✅ Country updated to: {new_country}")
+            await query.edit_message_text(f"🌍 **LOCATION UPDATED!** 🌍\n\n✨ Territory changed to: **{new_country}**", parse_mode='Markdown')
             
         elif data.startswith("update_age_"):
             new_age = int(data.split("_")[2])
             db.update_user_profile(user_id, age=new_age)
-            await query.edit_message_text(f"✅ Age updated to: {new_age}")
+            await query.edit_message_text(f"🎂 **AGE UPDATED!** 🎂\n\n✨ Age category changed to: **{new_age}**", parse_mode='Markdown')
             
         elif data == "back_to_profile":
             keyboard = [
@@ -262,29 +268,39 @@ By clicking "Agree", you accept these terms and conditions.
             if user_data and user_data['is_vip'] and user_data['vip_until'] and datetime.fromisoformat(str(user_data['vip_until'])) > datetime.now():
                 await self.find_chat_partner_by_gender(update, context, "Female")
             else:
-                await query.edit_message_text("🔒 This feature is only available for VIP users. Use /vip to get VIP status.")
+                await query.edit_message_text("🔒 **VIP EXCLUSIVE** 🔒\n\n👑 This feature requires VIP membership\n💎 Use `/vip` to unlock premium features", parse_mode='Markdown')
                 
         elif data == "match_boys":
             user_data = db.get_user(user_id)
             if user_data and user_data['is_vip'] and user_data['vip_until'] and datetime.fromisoformat(str(user_data['vip_until'])) > datetime.now():
                 await self.find_chat_partner_by_gender(update, context, "Male")
             else:
-                await query.edit_message_text("🔒 This feature is only available for VIP users. Use /vip to get VIP status.")
+                await query.edit_message_text("🔒 **VIP EXCLUSIVE** 🔒\n\n👑 This feature requires VIP membership\n💎 Use `/vip` to unlock premium features", parse_mode='Markdown')
                 
         elif data == "match_random":
             await self.find_chat_partner_by_gender(update, context, None)
 
     async def setup_profile(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
-            [InlineKeyboardButton("👨 Male", callback_data="gender_Male")],
-            [InlineKeyboardButton("👩 Female", callback_data="gender_Female")]
+            [InlineKeyboardButton("💪 👨 GENTLEMAN", callback_data="gender_Male")],
+            [InlineKeyboardButton("💃 👩 LADY", callback_data="gender_Female")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        profile_text = """
+╔═══════════════════════════════╗
+║   🎭 **PROFILE CREATION** 🎭   ║
+╚═══════════════════════════════╝
+
+💫 **Step 1: Choose Your Identity** 💫
+
+🌟 Select your gender to begin your premium experience
+        """
+        
         if update.callback_query and update.callback_query.message:
-            await update.callback_query.message.reply_text("👤 Please select your gender:", reply_markup=reply_markup)
+            await update.callback_query.message.reply_text(profile_text, reply_markup=reply_markup, parse_mode='Markdown')
         elif update.message:
-            await update.message.reply_text("👤 Please select your gender:", reply_markup=reply_markup)
+            await update.message.reply_text(profile_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def setup_country(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
@@ -292,26 +308,46 @@ By clicking "Agree", you accept these terms and conditions.
             [InlineKeyboardButton("🇮🇳 India", callback_data="country_India"), InlineKeyboardButton("🇨🇦 Canada", callback_data="country_Canada")],
             [InlineKeyboardButton("🇦🇺 Australia", callback_data="country_Australia"), InlineKeyboardButton("🇩🇪 Germany", callback_data="country_Germany")],
             [InlineKeyboardButton("🇫🇷 France", callback_data="country_France"), InlineKeyboardButton("🇯🇵 Japan", callback_data="country_Japan")],
-            [InlineKeyboardButton("🌍 Other", callback_data="country_Other")]
+            [InlineKeyboardButton("🌍 ✨ OTHER LOCATION", callback_data="country_Other")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        country_text = """
+╔═══════════════════════════════╗
+║   🌍 **LOCATION SETUP** 🌍   ║
+╚═══════════════════════════════╝
+
+💫 **Step 2: Choose Your Territory** 💫
+
+🗺️ Select your country for premium matching
+        """
+        
         if update.callback_query and update.callback_query.message:
-            await update.callback_query.message.reply_text("🌍 Please select your country:", reply_markup=reply_markup)
+            await update.callback_query.message.reply_text(country_text, reply_markup=reply_markup, parse_mode='Markdown')
         elif update.message:
-            await update.message.reply_text("🌍 Please select your country:", reply_markup=reply_markup)
+            await update.message.reply_text(country_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def setup_age(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
-            [InlineKeyboardButton("18-25", callback_data="age_22"), InlineKeyboardButton("26-35", callback_data="age_30")],
-            [InlineKeyboardButton("36-45", callback_data="age_40"), InlineKeyboardButton("46+", callback_data="age_50")]
+            [InlineKeyboardButton("🌱 18-25 YOUNG", callback_data="age_22"), InlineKeyboardButton("💫 26-35 PRIME", callback_data="age_30")],
+            [InlineKeyboardButton("🌟 36-45 MATURE", callback_data="age_40"), InlineKeyboardButton("👑 46+ ELITE", callback_data="age_50")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        age_text = """
+╔═══════════════════════════════╗
+║   📅 **AGE SELECTION** 📅   ║
+╚═══════════════════════════════╝
+
+💫 **Step 3: Choose Your Era** 💫
+
+🎂 Select your age group for perfect matching
+        """
+        
         if update.callback_query and update.callback_query.message:
-            await update.callback_query.message.reply_text("📅 Please select your age group:", reply_markup=reply_markup)
+            await update.callback_query.message.reply_text(age_text, reply_markup=reply_markup, parse_mode='Markdown')
         elif update.message:
-            await update.message.reply_text("📅 Please select your age group:", reply_markup=reply_markup)
+            await update.message.reply_text(age_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def check_force_join_compliance(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         force_join_groups = db.get_force_join_groups()
@@ -341,33 +377,50 @@ By clicking "Agree", you accept these terms and conditions.
                     elif not group_link.startswith('http'):
                         group_link = f"https://t.me/{group_link}"
                     
-                    keyboard.append([InlineKeyboardButton(f"Join Group {len(keyboard)+1}", url=group_link)])
+                    keyboard.append([InlineKeyboardButton(f"🌟 JOIN ELITE GROUP {len(keyboard)+1}", url=group_link)])
                 except:
                     # Skip invalid groups
                     continue
             
             reply_markup = InlineKeyboardMarkup(keyboard)
-            message_text = "🔒 You must join all required groups to use this bot:"
+            message_text = """
+╔══════════════════════════════════╗
+║  🔒 **GROUP ACCESS REQUIRED** 🔒  ║
+╚══════════════════════════════════╝
+
+👑 **ELITE MEMBERSHIP VERIFICATION** 👑
+
+🚫 You must join all premium groups to access the platform
+
+✨ **Click below to join and unlock full access** ✨
+            """
             
             if update.callback_query and update.callback_query.message:
-                await update.callback_query.message.reply_text(message_text, reply_markup=reply_markup)
+                await update.callback_query.message.reply_text(message_text, reply_markup=reply_markup, parse_mode='Markdown')
             elif update.message:
-                await update.message.reply_text(message_text, reply_markup=reply_markup)
+                await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode='Markdown')
         else:
             await self.show_main_menu(update, context)
 
     async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         message_text = """
-🤖 **Welcome to BoysGirlsChatBot!**
+╔══════════════════════════════════╗
+║  💎 **PREMIUM DATING PLATFORM** 💎  ║  
+╚══════════════════════════════════╝
 
-Available commands:
-🗨️ /chat - Find a random chat partner
-🛑 /end - End current chat session
-👑 /vip - Get VIP status
-🔗 /refer - View your referral link
-👤 /profile - Update profile or set partner filter
+🌟 **WELCOME TO YOUR ELITE EXPERIENCE** 🌟
 
-Enjoy chatting anonymously!
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃          🎯 **MAIN MENU** 🎯          
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ 💬 `/chat` ➤ Find Your Match      
+┃ 🛑 `/end` ➤ End Current Session   
+┃ 👑 `/vip` ➤ Upgrade to Premium    
+┃ 🔗 `/refer` ➤ Invite & Earn       
+┃ 👤 `/profile` ➤ Manage Profile    
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✨ **Start your premium anonymous dating journey!** ✨
         """
         
         if update.callback_query and update.callback_query.message:
@@ -386,18 +439,28 @@ Enjoy chatting anonymously!
         
         # Check if already in chat
         if user_data['chat_partner']:
-            await update.message.reply_text("❌ You are already in a chat session. Use /end to end current session.")
+            await update.message.reply_text("❌ **ALREADY CONNECTED** ❌\n\n🔗 You are currently in a chat session\n🛑 Use `/end` to terminate current session", parse_mode='Markdown')
             return
         
         # Show gender-based matching options
         keyboard = [
-            [InlineKeyboardButton("👩 Match with Girls (VIP)", callback_data="match_girls")],
-            [InlineKeyboardButton("👨 Match with Boys (VIP)", callback_data="match_boys")],
-            [InlineKeyboardButton("🎲 Match Randomly (Free)", callback_data="match_random")]
+            [InlineKeyboardButton("💃 👑 MATCH WITH LADIES (VIP)", callback_data="match_girls")],
+            [InlineKeyboardButton("💪 👑 MATCH WITH GENTLEMEN (VIP)", callback_data="match_boys")],
+            [InlineKeyboardButton("🎲 ✨ RANDOM MATCH (FREE)", callback_data="match_random")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text("🔍 **Choose your matching preference:**", reply_markup=reply_markup, parse_mode='Markdown')
+        matching_text = """
+╔════════════════════════════════╗
+║  🎯 **ELITE MATCHING SYSTEM** 🎯  ║
+╚════════════════════════════════╝
+
+💫 **Choose Your Premium Experience** 💫
+
+🌟 Select your preferred matching type below
+        """
+        
+        await update.message.reply_text(matching_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def find_chat_partner_by_gender(self, update: Update, context: ContextTypes.DEFAULT_TYPE, gender_filter):
         user_id = update.effective_user.id if update.effective_user else update.callback_query.from_user.id
@@ -406,11 +469,11 @@ Enjoy chatting anonymously!
         
         # Check if already in chat
         if user_data and user_data['chat_partner']:
-            message = "❌ You are already in a chat session. Use /end to end current session."
+            message = "❌ **ALREADY CONNECTED** ❌\n\n🔗 You are currently in a premium chat\n🛑 Use `/end` to terminate session"
             if update.callback_query:
-                await update.callback_query.edit_message_text(message)
+                await update.callback_query.edit_message_text(message, parse_mode='Markdown')
             else:
-                await update.message.reply_text(message)
+                await update.message.reply_text(message, parse_mode='Markdown')
             return
         
         # Mark user as looking for chat
@@ -429,17 +492,14 @@ Enjoy chatting anonymously!
             elif gender_filter == "Male":
                 gender_text = " male"
             
-            message = f"⏳ No{gender_text} chat partner available right now. Please try again in a moment."
+            message = f"⏳ **SEARCHING...** ⏳\n\n🔍 No{gender_text} chat partner available right now\n💫 Please try again in a moment"
             if update.callback_query:
-                await update.callback_query.edit_message_text(message)
+                await update.callback_query.edit_message_text(message, parse_mode='Markdown')
             else:
-                await update.message.reply_text(message)
+                await update.message.reply_text(message, parse_mode='Markdown')
             return
         
-        # Start chat session
-        db.start_chat_session(user_id, partner_id)
-        
-        # Get partner info
+        # Get partner info and validate BEFORE starting session
         partner_data = db.get_user(partner_id)
         
         # Verify partner has correct gender (double-check) BEFORE starting session
@@ -447,12 +507,15 @@ Enjoy chatting anonymously!
             # Clear looking status and retry without starting session
             db.set_user_looking_for_chat(user_id, False)
             db.set_user_looking_for_chat(partner_id, False)  # Reset partner too
-            message = f"❌ Matching error occurred. Please try again."
+            message = f"❌ **MATCHING ERROR** ❌\n\n🔄 System error occurred\n💫 Please try again"
             if update.callback_query:
-                await update.callback_query.edit_message_text(message)
+                await update.callback_query.edit_message_text(message, parse_mode='Markdown')
             else:
-                await update.message.reply_text(message)
+                await update.message.reply_text(message, parse_mode='Markdown')
             return
+        
+        # Now start chat session after validation
+        db.start_chat_session(user_id, partner_id)
         
         # Notify both users
         match_type = ""
@@ -463,14 +526,41 @@ Enjoy chatting anonymously!
         elif gender_filter is None:
             match_type = " (Random match)"
             
-        user_message = f"🎉 Chat partner found!{match_type}\n👤 Gender: {partner_data['gender']}\n📅 Age: {partner_data['age']}\n\nYou can now start chatting!"
-        partner_message = f"🎉 Chat partner found!\n👤 Gender: {user_data['gender']}\n📅 Age: {user_data['age']}\n\nYou can now start chatting!"
+        user_message = f"""
+╔══════════════════════════════════╗
+║  🎉 **MATCH FOUND!** 🎉   ║
+╚══════════════════════════════════╝
+
+💫 **CONNECTION ESTABLISHED**{match_type} 💫
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 👤 Gender: {partner_data['gender']}
+┃ 📅 Age: {partner_data['age']}
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✨ **Start your premium conversation now!** ✨
+        """
+        
+        partner_message = f"""
+╔══════════════════════════════════╗
+║  🎉 **MATCH FOUND!** 🎉   ║
+╚══════════════════════════════════╝
+
+💫 **CONNECTION ESTABLISHED** 💫
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 👤 Gender: {user_data['gender']}
+┃ 📅 Age: {user_data['age']}
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✨ **Start your premium conversation now!** ✨
+        """
         
         if update.callback_query:
-            await update.callback_query.edit_message_text(user_message)
+            await update.callback_query.edit_message_text(user_message, parse_mode='Markdown')
         else:
-            await update.message.reply_text(user_message)
-        await context.bot.send_message(chat_id=partner_id, text=partner_message)
+            await update.message.reply_text(user_message, parse_mode='Markdown')
+        await context.bot.send_message(chat_id=partner_id, text=partner_message, parse_mode='Markdown')
 
     async def end_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
@@ -481,22 +571,40 @@ Enjoy chatting anonymously!
         partner_id = db.end_chat_session(user_id)
         
         if partner_id:
-            await update.message.reply_text("✅ Chat session ended. Use /chat to find a new partner.")
-            await context.bot.send_message(chat_id=partner_id, text="❌ Your chat partner has ended the session. Use /chat to find a new partner.")
+            await update.message.reply_text("🎯 **SESSION ENDED** 🎯\n\n✨ Chat session successfully terminated\n💫 Use `/chat` to find a new premium match!")
+            await context.bot.send_message(chat_id=partner_id, text="💔 **SESSION ENDED** 💔\n\n🌟 Your chat partner has ended the session\n✨ Use `/chat` to find a new premium match!")
         else:
-            await update.message.reply_text("❌ You are not currently in a chat session.")
+            await update.message.reply_text("❌ **NO ACTIVE SESSION** ❌\n\n🎯 You are not currently in a chat session\n💫 Use `/chat` to start matching!")
 
     async def vip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await self.check_user_eligibility(update, context):
             return
         
         keyboard = [
-            [InlineKeyboardButton("🔗 Refer friends and earn VIP", callback_data="vip_refer")],
-            [InlineKeyboardButton("💎 Purchase VIP", callback_data="vip_purchase")]
+            [InlineKeyboardButton("🌟 💰 REFER & EARN VIP", callback_data="vip_refer")],
+            [InlineKeyboardButton("💎 🛒 PURCHASE PREMIUM", callback_data="vip_purchase")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text("👑 **VIP Membership Options:**", reply_markup=reply_markup, parse_mode='Markdown')
+        vip_text = """
+╔══════════════════════════════════╗
+║   👑 **EXCLUSIVE VIP LOUNGE** 👑   ║
+╚══════════════════════════════════╝
+
+✨ **UNLOCK PREMIUM FEATURES** ✨
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 🎯 **VIP BENEFITS:**
+┃ • 💃 Match with specific genders
+┃ • 🎲 Priority matching algorithm  
+┃ • 🌟 Enhanced profile visibility
+┃ • 💎 Exclusive VIP support
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+💫 **Choose your path to elite status** 💫
+        """
+        
+        await update.message.reply_text(vip_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def show_referral_info(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id if update.effective_user else update.callback_query.from_user.id
@@ -504,16 +612,25 @@ Enjoy chatting anonymously!
         
         referral_link = f"https://t.me/BoysGirlsChatBot?start={user_id}"
         message_text = f"""
-🔗 **Your Referral Link:**
-{referral_link}
+╔══════════════════════════════════╗
+║  🌟 **REFERRAL EMPIRE** 🌟   ║
+╚══════════════════════════════════╝
 
-📊 **Referral Stats:**
-👥 People referred: {user_data['referral_count']}
+💰 **YOUR EXCLUSIVE INVITE LINK** 💰
+🔗 `{referral_link}`
 
-💡 **How it works:**
-• Share your referral link with friends
-• When someone starts the bot through your link, you get VIP for 24 hours
-• No limit on referrals!
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 📊 **REFERRAL DASHBOARD:**
+┃ 👥 Elite Members Invited: {user_data['referral_count']}
+┃ 💎 VIP Hours Earned: {user_data['referral_count'] * 24}
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ 🎯 **REFERRAL REWARDS:**
+┃ • 24 Hours VIP per invite
+┃ • Unlimited earning potential
+┃ • Instant VIP activation
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✨ **Share and earn your way to permanent VIP!** ✨
         """
         
         if update.callback_query:
@@ -523,19 +640,35 @@ Enjoy chatting anonymously!
 
     async def show_vip_purchase_options(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
-            [InlineKeyboardButton("1 Day - 10 ⭐", callback_data="buy_vip_1_10")],
-            [InlineKeyboardButton("5 Days - 25 ⭐", callback_data="buy_vip_5_25")],
-            [InlineKeyboardButton("12 Days - 50 ⭐", callback_data="buy_vip_12_50")],
-            [InlineKeyboardButton("1 Months - 100 ⭐", callback_data="buy_vip_30_100")]
+            [InlineKeyboardButton("⚡ 1 DAY TRIAL - 10 ⭐", callback_data="buy_vip_1_10")],
+            [InlineKeyboardButton("🌟 5 DAYS POPULAR - 25 ⭐", callback_data="buy_vip_5_25")],
+            [InlineKeyboardButton("💫 12 DAYS PREMIUM - 50 ⭐", callback_data="buy_vip_12_50")],
+            [InlineKeyboardButton("👑 1 MONTH ELITE - 100 ⭐", callback_data="buy_vip_30_100")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        message_text = "💎 **VIP Purchase Options:**\n\nSelect your preferred VIP duration:"
+        purchase_text = """
+╔══════════════════════════════════╗
+║  💎 **PREMIUM PACKAGES** 💎   ║
+╚══════════════════════════════════╝
+
+🌟 **CHOOSE YOUR ELITE EXPERIENCE** 🌟
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 💫 **ALL PACKAGES INCLUDE:**
+┃ • 💃 Gender-specific matching
+┃ • 🎯 Priority algorithm access
+┃ • 🌟 Enhanced profile features
+┃ • 💎 Exclusive VIP support
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+✨ **Select your premium duration below** ✨
+        """
         
         if update.callback_query:
-            await update.callback_query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode='Markdown')
+            await update.callback_query.edit_message_text(purchase_text, reply_markup=reply_markup, parse_mode='Markdown')
         elif update.message:
-            await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode='Markdown')
+            await update.message.reply_text(purchase_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def process_vip_purchase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, days: int, stars: int):
         user_id = update.effective_user.id if update.effective_user else update.callback_query.from_user.id
@@ -850,30 +983,36 @@ Enjoy chatting anonymously!
         force_join_groups = db.get_force_join_groups()
         
         stats_message = f"""
-📊 **Detailed Bot Statistics**
+╔══════════════════════════════════╗
+║  📊 **ADMIN DASHBOARD** 📊   ║
+╚══════════════════════════════════╝
 
-👥 **User Statistics:**
-• Total Users: {stats['total_users']}
-• 👨 Male Users: {stats['male_users']}
-• 👩 Female Users: {stats['female_users']}
-• ✅ Completed Profiles: {stats['completed_profiles']}
-• ❌ Blocked Users: {stats['blocked_users']}
+🎯 **SYSTEM OVERVIEW** 🎯
 
-🟢 **Live Users (Currently Active):**
-• 👨 Live Male Users: {stats['live_male_users']}
-• 👩 Live Female Users: {stats['live_female_users']}
-• 📱 Total Live Users: {stats['live_male_users'] + stats['live_female_users']}
-
-💬 **Chat Statistics:**
-• Active Chat Sessions: {stats['active_chats']}
-• Total Messages Sent: {stats['total_messages']}
-
-👑 **Premium Statistics:**
-• VIP Users: {stats['vip_users']}
-• Total Referrals Made: {stats['total_referrals']}
-
-🔒 **System Settings:**
-• Force Join Groups: {len(force_join_groups)}
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 👥 **USER STATISTICS:**
+┃ • Total Users: {stats['total_users']}
+┃ • 👨 Male Users: {stats['male_users']}
+┃ • 👩 Female Users: {stats['female_users']}
+┃ • ✅ Completed Profiles: {stats['completed_profiles']}
+┃ • ❌ Blocked Users: {stats['blocked_users']}
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ 🟢 **LIVE ACTIVITY:**
+┃ • 👨 Live Male Users: {stats['live_male_users']}
+┃ • 👩 Live Female Users: {stats['live_female_users']}
+┃ • 📱 Total Online: {stats['live_male_users'] + stats['live_female_users']}
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ 💬 **CHAT METRICS:**
+┃ • Active Sessions: {stats['active_chats']}
+┃ • Total Messages: {stats['total_messages']}
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ 👑 **PREMIUM DATA:**
+┃ • VIP Users: {stats['vip_users']}
+┃ • Total Referrals: {stats['total_referrals']}
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ 🔒 **SYSTEM CONFIG:**
+┃ • Force Join Groups: {len(force_join_groups)}
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 ⏰ **Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         """
@@ -924,8 +1063,23 @@ Enjoy chatting anonymously!
                 except:
                     pass
         
-        final_message = f"✅ Broadcast completed!\n📊 Results:\n• Total users: {total_users}\n• Successfully sent: {sent_count}\n• Failed: {failed_count}\n• Success rate: {round((sent_count/total_users)*100, 1)}%"
-        await update.message.reply_text(final_message)
+        final_message = f"""
+╔══════════════════════════════════╗
+║  📢 **BROADCAST COMPLETED** 📢   ║
+╚══════════════════════════════════╝
+
+🎯 **TRANSMISSION RESULTS** 🎯
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 👥 Total Users: {total_users}
+┃ ✅ Successfully Sent: {sent_count}
+┃ ❌ Failed Deliveries: {failed_count}
+┃ 📊 Success Rate: {round((sent_count/total_users)*100, 1)}%
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+🌟 **Broadcast mission accomplished!** 🌟
+        """
+        await update.message.reply_text(final_message, parse_mode='Markdown')
 
     async def admin_block(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not db.is_admin(update.effective_user.id):
