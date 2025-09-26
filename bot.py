@@ -847,10 +847,10 @@ Enjoy chatting anonymously!
         
         await update.message.reply_text(f"📢 Starting broadcast to {len(users)} users...")
         
-        for user_id in users:
+        for user in users:
             try:
                 await context.bot.copy_message(
-                    chat_id=user_id,
+                    chat_id=user['user_id'],
                     from_chat_id=update.message.chat_id,
                     message_id=update.message.reply_to_message.message_id
                 )
